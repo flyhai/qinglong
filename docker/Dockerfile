@@ -1,5 +1,5 @@
 FROM node:lts-alpine
-LABEL maintainer="whyour"
+LABEL maintainer="flyhai"
 ARG QL_URL=https://github.com/flyhai/qinglong.git
 ARG QL_BRANCH=master
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
