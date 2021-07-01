@@ -6,9 +6,9 @@ const titleMap: any = {
   '/': '控制面板',
   '/login': '登录',
   '/crontab': '定时任务',
-  '/env': '环境变量',
+  '/cookie': 'Session管理',
   '/config': '配置文件',
-  '/script': '查看脚本',
+  '/diy': '自定义脚本',
   '/diff': '对比工具',
   '/log': '日志',
   '/setting': '系统设置',
@@ -26,6 +26,7 @@ export function render(oldRender: any) {
       oldRender();
     })
     .catch((e) => {
+      console.log(e);
       if (e.response && e.response.status === 401) {
         localStorage.removeItem(config.authKey);
         history.push('/login');

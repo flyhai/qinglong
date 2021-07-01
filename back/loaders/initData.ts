@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { Container } from 'typedi';
 import { Crontab, CrontabStatus } from '../data/cron';
 import CronService from '../services/cron';
-import EnvService from '../services/env';
+import CookieService from '../services/cookie';
 
 const initData = [
   {
@@ -18,13 +18,19 @@ const initData = [
     name: '删除日志',
     command: 'ql rmlog 7',
     schedule: '30 7 */7 * *',
-    status: CrontabStatus.disabled,
+    status: CrontabStatus.idle,
+  },
+  {
+    name: '互助码',
+    command: 'ql code',
+    schedule: '30 7 * * *',
+    status: CrontabStatus.idle,
   },
 ];
 
 export default async () => {
   const cronService = Container.get(CronService);
-  const envService = Container.get(EnvService);
+  const cookieService = Container.get(CookieService);
   const cronDb = cronService.getDb();
 
   cronDb.count({}, async (err, count) => {
@@ -91,7 +97,7 @@ export default async () => {
 
   // 初始化保存一次ck和定时任务数据
   await cronService.autosave_crontab();
-  await envService.set_envs();
+  await cookieService.set_cookies();
 };
 
 function randomSchedule(from: number, to: number) {

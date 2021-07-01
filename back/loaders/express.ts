@@ -5,7 +5,6 @@ import routes from '../api';
 import config from '../config';
 import jwt from 'express-jwt';
 import fs from 'fs';
-import { getToken } from '../config/util';
 
 export default ({ app }: { app: Application }) => {
   app.enable('trust proxy');
@@ -19,16 +18,16 @@ export default ({ app }: { app: Application }) => {
     }),
   );
   app.use((req, res, next) => {
+    if (req.url && req.url.includes('/api/login')) {
+      return next();
+    }
     const data = fs.readFileSync(config.authConfigFile, 'utf8');
-    const headerToken = getToken(req);
+    const authHeader = req.headers.authorization;
     if (data) {
       const { token } = JSON.parse(data);
-      if (token && headerToken === token) {
+      if (token && authHeader.includes(token)) {
         return next();
       }
-    }
-    if (!headerToken && req.url && req.path === '/api/login') {
-      return next();
     }
     const err: any = new Error('UnauthorizedError');
     err['status'] = 401;

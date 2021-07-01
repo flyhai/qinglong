@@ -558,7 +558,7 @@ const Crontab = () => {
           onSearch={onSearch}
         />,
         <Button key="2" type="primary" onClick={() => addCron()}>
-          添加任务
+          添加定时
         </Button>,
       ]}
       header={{
