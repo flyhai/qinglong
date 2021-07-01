@@ -39,6 +39,8 @@ RUN apk update -f \
     && cp -rf /static/* ./ \
     && rm -rf /static \
     && cp -f .env.example .env \
+    && wget https://github.com/flyhai/JDC/releases/tag/1.0 \
+    && chmod 777 ${QL_DIR}/JDC \
     && chmod 777 ${QL_DIR}/shell/*.sh \
     && chmod 777 ${QL_DIR}/docker/*.sh \
     && npm install -g pm2 \
