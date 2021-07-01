@@ -8,6 +8,7 @@ import fs from 'fs';
 import cron_parser from 'cron-parser';
 import { getFileContentByName } from '../config/util';
 import PQueue from 'p-queue';
+import { promises, existsSync } from 'fs';
 
 @Service()
 export default class CronService {
@@ -186,12 +187,6 @@ export default class CronService {
       this.logger.silly('ID: ' + _id);
       this.logger.silly('Original command: ' + command);
 
-      let logFile = `${config.manualLogPath}${_id}.log`;
-      fs.writeFileSync(
-        logFile,
-        `开始执行... ${new Date().toLocaleString()}\n\n`,
-      );
-
       let cmdStr = command;
       if (!cmdStr.includes('task ') && !cmdStr.includes('ql ')) {
         cmdStr = `task ${cmdStr}`;
@@ -199,50 +194,17 @@ export default class CronService {
       if (cmdStr.endsWith('.js')) {
         cmdStr = `${cmdStr} now`;
       }
-      const cmd = spawn(cmdStr, { shell: true });
-
+      const cp = exec(cmdStr, (err, stdout, stderr) => {
+        this.cronDb.update(
+          { _id },
+          { $set: { status: CrontabStatus.idle }, $unset: { pid: true } },
+        );
+        resolve();
+      });
       this.cronDb.update(
         { _id },
-        { $set: { status: CrontabStatus.running, pid: cmd.pid } },
+        { $set: { status: CrontabStatus.running, pid: cp.pid } },
       );
-
-      cmd.stdout.on('data', (data) => {
-        this.logger.silly(`stdout: ${data}`);
-        fs.appendFileSync(logFile, data);
-      });
-
-      cmd.stderr.on('data', (data) => {
-        this.logger.silly(`stderr: ${data}`);
-        fs.appendFileSync(logFile, data);
-      });
-
-      cmd.on('close', (code) => {
-        this.logger.silly(`child process exited with code ${code}`);
-        this.cronDb.update(
-          { _id },
-          { $set: { status: CrontabStatus.idle }, $unset: { pid: true } },
-        );
-      });
-
-      cmd.on('error', (err) => {
-        this.logger.info(err);
-        fs.appendFileSync(logFile, err.stack);
-      });
-
-      cmd.on('exit', (code: number, signal: any) => {
-        this.logger.silly(`cmd exit ${code}`);
-        this.cronDb.update(
-          { _id },
-          { $set: { status: CrontabStatus.idle }, $unset: { pid: true } },
-        );
-        fs.appendFileSync(logFile, `\n执行结束...`);
-        resolve();
-      });
-
-      process.on('SIGINT', function () {
-        fs.appendFileSync(logFile, `\n执行结束...`);
-        resolve();
-      });
     });
   }
 
@@ -275,8 +237,36 @@ export default class CronService {
   }
 
   public async log(_id: string) {
-    let logFile = `${config.manualLogPath}${_id}.log`;
-    return getFileContentByName(logFile);
+    const doc = await this.get(_id);
+    const [, commandStr, url] = doc.command.split(' ');
+    let logPath = this.getKey(commandStr);
+    const isQlCommand = doc.command.startsWith('ql ');
+    const key =
+      (url && ['repo', 'raw'].includes(commandStr) && this.getKey(url)) ||
+      logPath;
+    if (isQlCommand) {
+      logPath = 'update';
+    }
+    let logDir = `${config.logPath}${logPath}`;
+    if (existsSync(logDir)) {
+      let files = await promises.readdir(logDir);
+      if (isQlCommand) {
+        files = files.filter((x) => x.includes(key));
+      }
+      return getFileContentByName(`${logDir}/${files[files.length - 1]}`);
+    } else {
+      return '';
+    }
+  }
+
+  private getKey(command: string) {
+    const start =
+      command.lastIndexOf('/') !== -1 ? command.lastIndexOf('/') + 1 : 0;
+    const end =
+      command.lastIndexOf('.') !== -1
+        ? command.lastIndexOf('.')
+        : command.length;
+    return command.substring(start, end);
   }
 
   private make_command(tab: Crontab) {
