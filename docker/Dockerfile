@@ -8,8 +8,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     PS1="\u@\h:\w \$ " \
     QL_DIR=/ql
 WORKDIR ${QL_DIR}
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
-    && apk update -f \
+RUN apk update -f \
     && apk upgrade \
     && apk --no-cache add -f bash \
                              coreutils \
