@@ -7,23 +7,6 @@ dir_shell=/ql/shell
 
 send_mark=$dir_shell/send_mark
 
-## 重置仓库remote url，docker专用，$1：要重置的目录，$2：要重置为的网址
-reset_romote_url() {
-    local dir_current=$(pwd)
-    local dir_work=$1
-    local url=$2
-    local branch="$3"
-
-    [[ $branch ]] && local cmd="origin/${branch}"
-
-    if [ -d "$dir_work/.git" ]; then
-        cd $dir_work
-        git remote set-url origin $url >/dev/null
-        git reset --hard $cmd >/dev/null
-        cd $dir_current
-    fi
-}
-
 ## 检测cron的差异，$1：脚本清单文件路径，$2：cron任务清单文件路径，$3：增加任务清单文件路径，$4：删除任务清单文件路径
 diff_cron() {
     local list_scripts="$1"
@@ -244,7 +227,6 @@ usage() {
     echo -e "3. $cmd_update raw <fileurl>                                             # 更新单个脚本文件"
     echo -e "4. $cmd_update repo <repourl> <path> <blacklist> <dependence> <branch>   # 更新单个仓库的脚本"
     echo -e "5. $cmd_update rmlog <days>                                              # 删除旧日志"
-    echo -e "6. $cmd_update code                                                      # 获取互助码"
     echo -e "6. $cmd_update bot                                                       # 启动tg-bot"
     echo -e "7. $cmd_update reset                                                     # 重置青龙基础环境"
 }
@@ -253,8 +235,15 @@ usage() {
 update_qinglong() {
     local no_restart="$1"
     echo -e "--------------------------------------------------------------\n"
+    if [ -f /ql/db/cookie.db ]; then
+        echo -e "检测到旧的db文件，拷贝为新db...\n"
+        mv /ql/db/cookie.db /ql/db/env.db
+        rm /ql/db/cookie.db
+        echo
+    fi
+
     [ -f $dir_root/package.json ] && ql_depend_old=$(cat $dir_root/package.json)
-    reset_romote_url ${dir_root} "${github_proxy_url}https://github.com/flyhai/qinglong.git"
+    reset_romote_url ${dir_root} "${github_proxy_url}https://github.com/whyour/qinglong.git"
     git_pull_scripts $dir_root
 
     if [[ $exit_status -eq 0 ]]; then
@@ -269,7 +258,7 @@ update_qinglong() {
         echo -e "\n更新$dir_root失败，请检查原因...\n"
     fi
 
-    local url="${github_proxy_url}https://github.com/flyhai/qinglong-static.git"
+    local url="${github_proxy_url}https://github.com/whyour/qinglong-static.git"
     if [ -d ${ql_static_repo}/.git ]; then
         reset_romote_url ${ql_static_repo} ${url}
         cd ${ql_static_repo}
@@ -304,15 +293,15 @@ reload_pm2() {
     pm2 l >/dev/null 2>&1
     
     if [[ $(pm2 info panel 2>/dev/null) ]]; then
-        pm2 reload panel >/dev/null 2>&1
+        pm2 reload panel --source-map-support --time >/dev/null 2>&1
     else
-        pm2 start $dir_root/build/app.js -n panel >/dev/null 2>&1
+        pm2 start $dir_root/build/app.js -n panel --source-map-support --time >/dev/null 2>&1
     fi
 
     if [[ $(pm2 info schedule 2>/dev/null) ]]; then
-        pm2 reload schedule >/dev/null 2>&1
+        pm2 reload schedule --source-map-support --time >/dev/null 2>&1
     else
-        pm2 start $dir_root/build/schedule.js -n schedule >/dev/null 2>&1
+        pm2 start $dir_root/build/schedule.js -n schedule --source-map-support --time >/dev/null 2>&1
     fi
 }
 
@@ -401,21 +390,25 @@ main() {
     local p4=$4
     local p5=$5
     local p6=$6
-    log_time=$(date "+%Y-%m-%d-%H-%M-%S")
-    log_path="$dir_log/update/${log_time}_$p1.log"
+    local log_time=$(date "+%Y-%m-%d-%H-%M-%S")
+    local log_path="$dir_log/update/${log_time}_$p1.log"
+    local begin_time=$(date '+%Y-%m-%d %H:%M:%S')
     case $p1 in
     update)
-        update_qinglong "$2" | tee $log_path
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
+        update_qinglong "$2" | tee -a $log_path
         ;;
     extra)
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
         run_extra_shell | tee -a $log_path
         ;;
     repo)
         get_user_info
         local name=$(echo "${p2##*/}" | awk -F "." '{print $1}')
         log_path="$dir_log/update/${log_time}_$name.log"
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
         if [[ -n $p2 ]]; then
-            update_repo "$p2" "$p3" "$p4" "$p5" "$p6" | tee $log_path
+            update_repo "$p2" "$p3" "$p4" "$p5" "$p6" | tee -a $log_path
         else
             echo -e "命令输入错误...\n"
             usage
@@ -425,30 +418,34 @@ main() {
         get_user_info
         local name=$(echo "${p2##*/}" | awk -F "." '{print $1}')
         log_path="$dir_log/update/${log_time}_$name.log"
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
         if [[ -n $p2 ]]; then
-            update_raw "$p2" | tee $log_path
+            update_raw "$p2" | tee -a $log_path
         else
             echo -e "命令输入错误...\n"
             usage
         fi
         ;;
     rmlog)
-        . $dir_shell/rmlog.sh "$p2" | tee $log_path
-        ;;
-    code)
-        . $dir_shell/code.sh
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
+        . $dir_shell/rmlog.sh "$p2" | tee -a $log_path
         ;;
     bot)
-        . $dir_shell/bot.sh
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
+        . $dir_shell/bot.sh | tee -a $log_path
         ;;
-    reset)
-        . $dir_shell/reset.sh
+    check)
+        echo -e "## 开始执行... $begin_time\n" >> $log_path
+        . $dir_shell/check.sh | tee -a $log_path
         ;;
     *)
         echo -e "命令输入错误...\n"
         usage
         ;;
     esac
+    local end_time=$(date '+%Y-%m-%d %H:%M:%S')
+    local diff_time=$(($(date +%s -d "$end_time") - $(date +%s -d "$begin_time")))
+    echo -e "\n## 执行结束... $end_time  耗时 $diff_time 秒" >> $log_path
 }
 
 main "$@"
